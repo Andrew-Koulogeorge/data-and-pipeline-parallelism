@@ -15,7 +15,7 @@ class Partition():
     def __getitem__(self, index):
         '''Given index, get the data according to the partitioned index'''
         # BEGIN_HW5_1_1
-        raise NotImplementedError("Data Parallel Not Implemented Yet")
+        return self.data[self.index[index]]
         # END_HW5_1_1
 
 class DataPartitioner():
@@ -28,9 +28,23 @@ class DataPartitioner():
         1. Create indices and use `rng` to shuffle indices
         2. Create different partitions of indices according to `sizes` and store in `self.partitions`
         '''
-        # BEGIN_HW5_1_1
-        raise NotImplementedError("Data Parallel Not Implemented Yet")
-        # END_HW5_1_1
+        n = len(self.data)
+        idxs = [i for i in range(n)] 
+        rng.shuffle(idxs)
+        prefix_sizes = [int(n*sizes[0])]
+        
+        for i in range(len(sizes)-1):
+            prefix_sizes[i+1] = prefix_sizes[i] + int(n*sizes[i+1])
+        
+        left = right = 0
+        
+        for p in prefix_sizes:
+            right = p
+            self.partitions.append(idx[left:right])
+            left = p
+        
+        self.partition.append(idx[left:])            
+
 
     def use(self, partition):
         ''' Return a simple dataset class `Partiton` by original data and partitioned indices
@@ -38,7 +52,7 @@ class DataPartitioner():
         Just one line of code. Think it simply.
         '''
         # BEGIN_HW5_1_1
-        raise NotImplementedError("Data Parallel Not Implemented Yet")
+        return Partition(self.data, self.partitions[partition])
         # END_HW5_1_1
 
 def partition_dataset(rank, world_size, dataset, batch_size=128, collate_fn=None):
@@ -54,5 +68,10 @@ def partition_dataset(rank, world_size, dataset, batch_size=128, collate_fn=None
     4. Wrap the dataset with `DataLoader`, remember to customize the `collate_fn`
     """
     # BEGIN_HW5_1
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    assert world_size % batch_size == 0, "need batch size to split evenly among workers"
+    p_bs = batch_size // world_size
+    p_sizes = [1/world_size]*world_size
+    data_partitioner = DataPartitioner(dataset, p_sizes)
+    partition = data_partitioner(rank)
+    return DataLoader(partition, collate_fn=collate_fn)
     # END_HW5_1
