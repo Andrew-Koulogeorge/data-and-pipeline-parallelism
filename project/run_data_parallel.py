@@ -32,7 +32,9 @@ def average_gradients(model):
     3. Average the gradients over the world_size (total number of devices)
     '''
     # BEGIN_HW5_1_2
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    for param in model.parameters():
+        dist.all_reduce(param.grad, op=dist.ReduceOp.SUM)
+        param.grad = param.grad / dist.get_world_size()
     # END_HW5_1_2
 
 def setup(rank, world_size, backend):
@@ -42,7 +44,9 @@ def setup(rank, world_size, backend):
     2. Use `torch.distributed` to init the process group
     '''
     # BEGIN_HW5_1_2
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    os.environ["MASTER_ADDR"] = "127.0.0.1"
+    os.environ["MASTER_PORT"] = "11868"
+    dist.init_process_group(backend, rank=rank, world_size=world_size)
     # END_HW5_1_2
 
 
@@ -62,7 +66,7 @@ def run_dp(
     config = AutoConfig.from_pretrained('gpt2')
     config.save_pretrained(workdir)
     
-    ### Distributed Training Setup
+    ### Distributed Training Setup 
     setup(rank, world_size, backend)
     
     model = GPT2LMHeadModel.from_pretrained('gpt2').to(rank)
@@ -176,7 +180,7 @@ if __name__ == '__main__':
     parser.add_argument('--pytest', type=bool, default=False)
     parser.add_argument('--dataset', type=str, default='bbaaaa/iwslt14-de-en-preprocess')
     parser.add_argument('--model_max_length', type=int, default=128)
-    parser.add_argument('--n_epochs', type=int, default=10)
+    parser.add_argument('--n_epochs', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
     parser.add_argument('--world_size', type=int, default=2)
@@ -197,8 +201,15 @@ if __name__ == '__main__':
     2. You should start the processes to work and terminate resources properly
     '''
     # BEGIN_HW5_1_3
-    world_size = None  # TODO: Define the number of GPUs
-    backend = None  # TODO: Define your backend for communication, we suggest using 'nccl'
-
-    raise NotImplementedError("Data Parallel Not Implemented Yet")
+    world_size = args.world_size  # TODO: Define the number of GPUs
+    backend = 'nccl'              # TODO: Define your backend for communication, we suggest using 'nccl'
+    for pid in range(world_size):
+        p = Process(target=run_dp, args=(pid, world_size, backend, args.dataset, 
+                                         args.model_max_length, args.n_epochs, args.batch_size,
+                                         args.learning_rate, args.benchmark_only, args.max_batches, PYTEST)) # fork a new process whose argument is training run
+        p.start() # start process
+        processes.append(p)
+    
+    for p in processes:
+        p.join() # ensure processes are joined with root process (no zombies!)
     # END_HW5_1_3

@@ -31,19 +31,15 @@ class DataPartitioner():
         n = len(self.data)
         idxs = [i for i in range(n)] 
         rng.shuffle(idxs)
-        prefix_sizes = [int(n*sizes[0])]
-        
-        for i in range(len(sizes)-1):
-            prefix_sizes[i+1] = prefix_sizes[i] + int(n*sizes[i+1])
-        
-        left = right = 0
-        
-        for p in prefix_sizes:
-            right = p
-            self.partitions.append(idx[left:right])
-            left = p
-        
-        self.partition.append(idx[left:])            
+
+        curr_idx = 0
+        for i, size in enumerate(sizes):
+            if i == len(sizes)-1:
+                self.partitions.append(idxs[curr_idx:])
+            else:
+                offset = int(n*sizes[i])
+                self.partitions.append(idxs[curr_idx:curr_idx+offset])
+                curr_idx += offset
 
 
     def use(self, partition):
@@ -68,10 +64,10 @@ def partition_dataset(rank, world_size, dataset, batch_size=128, collate_fn=None
     4. Wrap the dataset with `DataLoader`, remember to customize the `collate_fn`
     """
     # BEGIN_HW5_1
-    assert world_size % batch_size == 0, "need batch size to split evenly among workers"
+    assert batch_size % world_size == 0, "need batch size to split evenly among workers"
     p_bs = batch_size // world_size
     p_sizes = [1/world_size]*world_size
     data_partitioner = DataPartitioner(dataset, p_sizes)
-    partition = data_partitioner(rank)
-    return DataLoader(partition, collate_fn=collate_fn)
+    partition = data_partitioner.use(rank)
+    return DataLoader(partition, batch_size, collate_fn=collate_fn)
     # END_HW5_1
