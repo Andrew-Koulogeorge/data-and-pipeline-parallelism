@@ -24,9 +24,31 @@ def _clock_cycles(num_batches: int, num_partitions: int) -> Iterable[List[Tuple[
 
     Each schedule is a list of tuples. Each tuple contains the index of micro-batch and the index of partition.
     This function should yield schedules for each clock cycle.
-    '''
+    ''' # ajk is assumption this is only for the forward pass
+    
     # BEGIN_HW5_2_1
-    raise NotImplementedError("Schedule Generation Not Implemented Yet")
+    # keep list of micro batch elements that are currently in flight
+    # each time step, build current scedule based on previous scedule
+    # if there is still batches to add, add them
+    # if value was at model j, now at j+1
+    # if value was at last model, skip
+    prev_flight = []
+    TOTAL_TIME = num_batches + num_partitions - 1
+    micro_count = 0
+    for time in range(TOTAL_TIME):
+        in_flight = []
+        if prev_flight is None: 
+            in_flight = [(0,0)]
+            micro_count += 1
+        else:
+            if micro_count < num_batches:
+                in_flight.append((micro_count,0))
+                micro_count += 1
+            for prev in prev_flight: 
+                if prev[1] < num_partitions-1:
+                    in_flight.append((prev[0], prev[1]+1))
+        prev_flight = in_flight
+        yield in_flight
     # END_HW5_2_1
 
 class Pipe(nn.Module):

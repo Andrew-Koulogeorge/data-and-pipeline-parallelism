@@ -41,7 +41,8 @@ def _assemble_partition(modules: List[nn.Module]):
     return nn.Sequential(*modules_list)
 
 def _split_module(modules: nn.Sequential) -> Tuple[List[nn.Sequential], List[torch.device]]:
-    '''Split an nn.Sequential module into partitions and devices.
+    '''
+    Split an nn.Sequential module into partitions and devices.
 
     Each partition is a nn.Sequential module attached to the same device.
     The partitions and devices are returned as a tuple. Each partition corresponds to a device in the devices list.
@@ -57,10 +58,21 @@ def _split_module(modules: nn.Sequential) -> Tuple[List[nn.Sequential], List[tor
     current_partition = []
     current_device = None
     for name, module in modules.named_children():
-        # BEGIN_HW5_2_1
-        raise NotImplementedError("Module Splitting Not Implemented Yet")
-        # END_HW5_2_1
-
+        # get device of this module
+        if isinstance(module, WithDevice):
+            module_device = module.device
+        else:
+            module_device = _retrieve_device(module)
+        
+        # if it differs, add and start fresh
+        if current_device is not None and current_device != module_device:
+            partitions.append(_assemble_partition(current_partition))
+            devices.append(current_device)
+            current_partition = []
+        
+        current_device = module_device
+        current_partition.append(module)
+            
     if current_device is not None:
         partitions.append(_assemble_partition(current_partition))
         devices.append(current_device)
