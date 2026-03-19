@@ -101,6 +101,7 @@ def run_dp(
         device=rank)
     
     ### Get Partition of the Training Dataset on Device {rank}
+    print(f"batch size: {batch_size}")
     train_loader = partition_dataset(rank, world_size, dataset['train'], batch_size=batch_size, collate_fn=collate_fn)
 
     val_loader = DataLoader(dataset["validation"], batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
@@ -180,7 +181,7 @@ if __name__ == '__main__':
     parser.add_argument('--pytest', type=bool, default=False)
     parser.add_argument('--dataset', type=str, default='bbaaaa/iwslt14-de-en-preprocess')
     parser.add_argument('--model_max_length', type=int, default=128)
-    parser.add_argument('--n_epochs', type=int, default=1)
+    parser.add_argument('--n_epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=128)
     parser.add_argument('--learning_rate', type=float, default=1e-4)
     parser.add_argument('--world_size', type=int, default=2)
@@ -193,6 +194,7 @@ if __name__ == '__main__':
         PYTEST = False
 
     processes = []
+    
 
     '''Create Process to start distributed training
 

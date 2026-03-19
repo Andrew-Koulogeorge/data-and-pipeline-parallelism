@@ -99,6 +99,31 @@ class Pipe(nn.Module):
         '''
         partitions = self.partitions # list of modules
         devices = self.devices
+
+        # place all batches onto t0 work queue to start
+        for mu_batch in batches:
+            mu_batch = mu_batch.to(devices[0])
+            task = Task(compute = lambda p=partitions[0], b=mu_batch: p(b))
+            self.in_queues[0].put(task)
+        last_dev_idx = len(devices)-1
+        b_counter = 0
+        # loop over the scedule. 
+        for step, times in enumerate(schedule): 
+            for _, partition_idx in times: 
+                # partition idx = i means we are moving off that device onto next one
+                (status, exc_info) = self.out_queues[partition_idx].get()
+                _, mu_batch = exc_info         
+                if partition_idx != last_dev_idx:
+                    mu_batch = mu_batch.to(devices[partition_idx+1])
+                    task = Task(compute = lambda p=partitions[partition_idx+1], b=mu_batch: p(b))
+                    self.in_queues[partition_idx+1].put(task)
+                else:                        
+                    # if partition idx = last, then replace batch and increment counter
+                    batches[b_counter] = mu_batch
+                    b_counter += 1
+        
+        
+        """ correct but effectivly serial code
         for step, times in enumerate(schedule): 
             for mu_batch_idx, partition_idx in times: 
                 # model partition for current slice we want to compute
@@ -118,7 +143,6 @@ class Pipe(nn.Module):
                         print(exc_info)
                         return 
                     _, mu_batch = exc_info
-                    # print(f"mu shape : {mu_batch.shape}")
                 # ensure you move the batch to the right device? 
                 mu_batch = mu_batch.to(devices[partition_idx])
                 task = Task(compute = lambda p=partition, b=mu_batch: p(b))
@@ -129,6 +153,10 @@ class Pipe(nn.Module):
             # spin until output queue ready
             while (self.out_queues[-1].empty()): True
             (status, exc_info) = self.out_queues[-1].get()
+            if status == False:
+                print(f"HAD A FAILURE CASE")
+                print(exc_info)
+                return 
             (task,mu_batch) = exc_info
             batches[idx] = mu_batch
-    
+    """

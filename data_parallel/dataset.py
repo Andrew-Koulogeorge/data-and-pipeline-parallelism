@@ -69,5 +69,5 @@ def partition_dataset(rank, world_size, dataset, batch_size=128, collate_fn=None
     p_sizes = [1/world_size]*world_size
     data_partitioner = DataPartitioner(dataset, p_sizes)
     partition = data_partitioner.use(rank)
-    return DataLoader(partition, batch_size, collate_fn=collate_fn)
+    return DataLoader(partition, p_bs, collate_fn=collate_fn)
     # END_HW5_1

@@ -35,14 +35,22 @@ class GPT2ModelParallel(GPT2ModelCustom):
         2. Construct an nn.Sequential module for the transformer layers (self.h).
         3. Use Pipe to parallelize the transformer layers.
 
-        Please note that when implementing _prepare_pipeline_parallel, you would want to define the nn.Sequential module to extract useful values from the returned tuple. GPT2Block returns a tuple, not a tensor. 
+        Please note that when implementing _prepare_pipeline_parallel, you would want to define the nn.Sequential 
+        module to extract useful values from the returned tuple. 
+        GPT2Block returns a tuple, not a tensor. 
         You should construct nn.Sequential using GPT2Block modules. Notice that each block returns multiple values but you will only need the hidden states.
         '''
 
         # BEGIN_HW5_2_3
-        pipe = None
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
-        # END_HW5_2_3
+        self.pipeline_parallel = True
+        # construct mod list with first element extractions
+        mod_list = []
+        for i,h_layer in enumerate(self.h):
+            h_layer_dev = _retrieve_device(h_layer)
+            mod_list.append(h_layer)
+            mod_list.append(WithDevice(ExtractFirstItem(), h_layer_dev))
+            print(f"device for layer {i}: {h_layer_dev}")
+        pipe = Pipe(nn.Sequential(*mod_list))
         self.h_pp = pipe
 
 class GPT2LMHeadModelParallel(GPT2LMHeadModelCustom):

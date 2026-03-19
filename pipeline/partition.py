@@ -63,7 +63,6 @@ def _split_module(modules: nn.Sequential) -> Tuple[List[nn.Sequential], List[tor
             module_device = module.device
         else:
             module_device = _retrieve_device(module)
-        print(f"mod dev: {module_device}")
         # if it differs, add and start fresh
         if current_device is not None and current_device != module_device:
             partitions.append(_assemble_partition(current_partition))
@@ -78,6 +77,4 @@ def _split_module(modules: nn.Sequential) -> Tuple[List[nn.Sequential], List[tor
         devices.append(current_device)
 
     partitions = nn.ModuleList(partitions)
-    print(f"partitions: {partitions}")
-    print(f"devices: {devices}")
     return partitions, devices
