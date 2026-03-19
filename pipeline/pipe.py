@@ -62,6 +62,9 @@ class Pipe(nn.Module):
         self.split_size = int(split_size)
         self.partitions, self.devices = _split_module(module)
         (self.in_queues, self.out_queues) = create_workers(self.devices)
+        
+        # only have as many worker threads as unique devices
+        self.num_stages = len(self.devices)
 
     def forward(self, x):
         ''' Forward the input x through the pipeline. The return value should be put in the last device.
@@ -74,9 +77,16 @@ class Pipe(nn.Module):
         
         Please note that you should put the result on the last device. Putting the result on the same device as input x will lead to pipeline parallel training failing.
         '''
-        # BEGIN_HW5_2_2
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
-        # END_HW5_2_2
+
+        bs, *_ = x.shape
+        mu_xs = list(torch.chunk(x, self.num_stages, dim=0))
+        schedule = _clock_cycles(len(mu_xs), self.num_stages)
+        self.compute(mu_xs, schedule)
+        for i in range(len(mu_xs)):
+            mu_xs[i] = mu_xs[i].to(self.devices[-1])
+        y = torch.cat(mu_xs, dim=0)
+        return y
+
 
     def compute(self, batches, schedule: List[Tuple[int, int]]) -> None:
         '''Compute the micro-batches in parallel.
@@ -87,10 +97,38 @@ class Pipe(nn.Module):
         3. Use the in_queues and out_queues to send and receive tasks.
         4. Store the result back to the batches.
         '''
-        partitions = self.partitions
+        partitions = self.partitions # list of modules
         devices = self.devices
-
-        # BEGIN_HW5_2_2
-        raise NotImplementedError("Pipeline Parallel Not Implemented Yet")
-        # END_HW5_2_2
-
+        for step, times in enumerate(schedule): 
+            for mu_batch_idx, partition_idx in times: 
+                # model partition for current slice we want to compute
+                partition = partitions[partition_idx]
+                if partition_idx == 0: 
+                    # create a task and send it to the in_queue of worker 0
+                    mu_batch = batches[mu_batch_idx]
+                else:
+                    # spin until there is work populated in the previous queue
+                    while (self.out_queues[partition_idx-1].empty()): True
+                    (status, exc_info) = self.out_queues[partition_idx-1].get()
+                    
+                    if status == False and exc_info == None:
+                        continue # I dont think this should ever be triggered?
+                    elif status == False:
+                        print(f"HAD A FAILURE CASE")
+                        print(exc_info)
+                        return 
+                    _, mu_batch = exc_info
+                    # print(f"mu shape : {mu_batch.shape}")
+                # ensure you move the batch to the right device? 
+                mu_batch = mu_batch.to(devices[partition_idx])
+                task = Task(compute = lambda p=partition, b=mu_batch: p(b))
+                self.in_queues[partition_idx].put(task)
+        
+        # loop over the last device work queue to get the output batches in fifo manner
+        for idx in range(len(batches)):
+            # spin until output queue ready
+            while (self.out_queues[-1].empty()): True
+            (status, exc_info) = self.out_queues[-1].get()
+            (task,mu_batch) = exc_info
+            batches[idx] = mu_batch
+    

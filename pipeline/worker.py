@@ -21,7 +21,7 @@ def use_device(device: torch.device) -> Generator[None, None, None]:
         yield
         return
 
-    with torch.cuda.device(device):
+    with torch.cuda.device(device): 
         yield
 
 class Task:
